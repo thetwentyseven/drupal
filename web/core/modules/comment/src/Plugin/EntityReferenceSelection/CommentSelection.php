@@ -2,7 +2,6 @@
 
 namespace Drupal\comment\Plugin\EntityReferenceSelection;
 
-use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\Plugin\EntityReferenceSelection\DefaultSelection;
 use Drupal\comment\CommentInterface;
@@ -67,25 +66,10 @@ class CommentSelection extends DefaultSelection {
    * {@inheritdoc}
    */
   public function entityQueryAlter(SelectInterface $query) {
+    parent::entityQueryAlter($query);
 
     $tables = $query->getTables();
     $data_table = 'comment_field_data';
-
-    // Get the entity_type from cid
-    $arguments = $query->getArguments();
-    $cid = null;
-    foreach ($arguments as $argument) {
-      if ($argument > 1){
-        $cid = $argument;
-      }
-    }
-    $subselect = Database::getConnection()->select($data_table, 'c');
-    $subselect->addField('c', 'entity_type');
-    $subselect->condition('c.cid', $cid, '=');
-    $entity = $subselect->execute()->fetchField();
-    $join_table = $entity . '_field_data';
-    $primary = $entity === 'node' ? 'nid' : 'id';
-
     if (!isset($tables['comment_field_data']['alias'])) {
       // If no conditions join against the comment data table, it should be
       // joined manually to allow node access processing.
@@ -95,8 +79,7 @@ class CommentSelection extends DefaultSelection {
     // The Comment module doesn't implement any proper comment access,
     // and as a consequence doesn't make sure that comments cannot be viewed
     // when the user doesn't have access to the node.
-    $node_alias = $query->innerJoin($join_table, 'n', '%alias.'. $primary .' = ' . $data_table . '.entity_id AND ' . $data_table . ".entity_type = '$entity'");
-
+    $node_alias = $query->innerJoin('node_field_data', 'n', '%alias.nid = ' . $data_table . '.entity_id AND ' . $data_table . ".entity_type = 'node'");
     // Pass the query to the node access control.
     $this->reAlterQuery($query, 'node_access', $node_alias);
 
