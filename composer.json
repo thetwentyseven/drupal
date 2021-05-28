@@ -17,7 +17,6 @@
     "require": {
         "composer/installers": "^1.9",
         "drupal/commerce": "2.x-dev@dev",
-        "drupal/commerce_shipping": "2.x-dev@dev",
         "drupal/core-composer-scaffold": "^9",
         "drupal/core-project-message": "^9",
         "drupal/core-recommended": "^9",
