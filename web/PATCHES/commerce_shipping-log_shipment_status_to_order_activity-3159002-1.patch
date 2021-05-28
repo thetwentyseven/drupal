@@ -1,3 +1,14 @@
+diff --git a/commerce_shipping.commerce_log_templates.yml b/commerce_shipping.commerce_log_templates.yml
+new file mode 100644
+index 00000000..8aa68327
+--- /dev/null
++++ b/commerce_shipping.commerce_log_templates.yml
+@@ -0,0 +1,5 @@
++shipping_state_updated:
++  category: commerce_order
++  label: 'Shipping state updated'
++  template: '<p><a href="/admin/commerce/orders/{{ commerce_order }}/shipments/{{ commerce_shipment }}">{{ shipping_label }}</a> moved from
++  <em>{{ from_state }}</em> to <em>{{ to_state }}</em> by the <em>{{ transition_label }}</em> transition.</p>'
 diff --git a/src/EventSubscriber/ShipmentSubscriber.php b/src/EventSubscriber/ShipmentSubscriber.php
 index 10aef1ad..dea3dd4e 100644
 --- a/src/EventSubscriber/ShipmentSubscriber.php
