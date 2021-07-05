@@ -3,7 +3,7 @@ type: module
 description: 'Provides core shipping functionality.'
 package: Commerce (contrib)
 core_version_requirement: ^8.7.7 || ^9
-configure: commerce_shipping.admin_overview
+configure: commerce_shipping.configuration
 dependencies:
   - commerce:commerce
   - commerce:commerce_order
@@ -17,7 +17,7 @@ config_devel:
   optional:
     - commerce_checkout.commerce_checkout_flow.shipping
 
-# Information added by Drupal.org packaging script on 2021-05-14
-version: '8.x-2.0+2-dev'
+# Information added by Drupal.org packaging script on 2021-07-01
+version: '8.x-2.1+1-dev'
 project: 'commerce_shipping'
-datestamp: 1621000669
+datestamp: 1625128272
