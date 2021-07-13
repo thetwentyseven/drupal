@@ -1,0 +1,101 @@
+diff --git a/commerce_shipping.commerce_log_templates.yml b/commerce_shipping.commerce_log_templates.yml
+new file mode 100644
+index 00000000..1dd8d005
+--- /dev/null
++++ b/commerce_shipping.commerce_log_templates.yml
+@@ -0,0 +1,5 @@
++shipment_state_updated:
++  category: commerce_order
++  label: 'Shipment state updated'
++  template: '<p><a href="{{ shipment_url }}">{{ shipment_label }}</a> moved from
++  <em>{{ from_state }}</em> to <em>{{ to_state }}</em> by the <em>{{ transition_label }}</em> transition.</p>'
+diff --git a/src/CommerceShippingServiceProvider.php b/src/CommerceShippingServiceProvider.php
+index c005a097..41bb513e 100644
+--- a/src/CommerceShippingServiceProvider.php
++++ b/src/CommerceShippingServiceProvider.php
+@@ -4,6 +4,7 @@
+ 
+ use Drupal\commerce_shipping\EventSubscriber\CartSubscriber;
+ use Drupal\commerce_shipping\EventSubscriber\PromotionSubscriber;
++use Drupal\commerce_shipping\EventSubscriber\ShipmentLogSubscriber;
+ use Drupal\commerce_shipping\EventSubscriber\TaxSubscriber;
+ use Drupal\commerce_shipping\Normalizer\ShipmentItemNormalizer;
+ use Drupal\Core\DependencyInjection\ContainerBuilder;
+@@ -39,6 +40,11 @@ public function register(ContainerBuilder $container) {
+         ->addArgument(new Reference('commerce_shipping.order_manager'))
+         ->addTag('event_subscriber');
+     }
++    if (isset($modules['commerce_log'])) {
++      $container->register('commerce_shipping.shipment_log_subscriber', ShipmentLogSubscriber::class)
++        ->addArgument(new Reference('entity_type.manager'))
++        ->addTag('event_subscriber');
++    }
+     if (isset($modules['serialization'])) {
+       $container->register('commerce_shipping.normalizer.shipment_item', ShipmentItemNormalizer::class)
+         // Ensure that our normalizer takes precedence.
+diff --git a/src/EventSubscriber/ShipmentLogSubscriber.php b/src/EventSubscriber/ShipmentLogSubscriber.php
+new file mode 100644
+index 00000000..d212f027
+--- /dev/null
++++ b/src/EventSubscriber/ShipmentLogSubscriber.php
+@@ -0,0 +1,60 @@
++<?php
++
++namespace Drupal\commerce_shipping\EventSubscriber;
++
++use Drupal\Core\Entity\EntityTypeManagerInterface;
++use Drupal\state_machine\Event\WorkflowTransitionEvent;
++use Symfony\Component\EventDispatcher\EventSubscriberInterface;
++
++class ShipmentLogSubscriber implements EventSubscriberInterface
++{
++
++  /**
++   * The log storage.
++   *
++   * @var \Drupal\Core\Entity\EntityStorageInterface
++   */
++  protected $logStorage;
++
++  /**
++   * Constructs a new ShipmentLogSubscriber object.
++   *
++   * @param \Drupal\Core\Entity\EntityTypeManagerInterface                   $entity_type_manager
++   *   The entity type manager.
++   */
++  public function __construct(EntityTypeManagerInterface $entity_type_manager)
++  {
++    $this->logStorage = $entity_type_manager->getStorage('commerce_log');
++  }
++
++  /**
++   * {@inheritdoc}
++   */
++  public static function getSubscribedEvents()
++  {
++    return [
++      'commerce_shipment.post_transition' => ['onShipmentPostTransition'],
++    ];
++  }
++
++  /**
++   * Creates a log on shipment state update.
++   *
++   * @param \Drupal\state_machine\Event\WorkflowTransitionEvent $event
++   *   The transition event.
++   */
++  public function onShipmentPostTransition(WorkflowTransitionEvent $event)
++  {
++    $transition = $event->getTransition();
++    /** @var \Drupal\commerce_order\Entity\OrderInterface $order */
++    $shipment          = $event->getEntity();
++    $order             = $shipment->getOrder();
++    $this->logStorage->generate($order, 'shipment_state_updated', [
++      'shipment_url'     => $shipment->toUrl('canonical')->toString(),
++      'shipment_label'   => $shipment->label(),
++      'transition_label' => $transition->getLabel(),
++      'from_state'       => $order->getState()->getOriginalLabel(),
++      'to_state'         => $order->getState()->getLabel(),
++    ])->save();
++  }
++}
