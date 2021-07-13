@@ -1,0 +1,116 @@
+diff --git a/modules/webform_group/src/WebformGroupManager.php b/modules/webform_group/src/WebformGroupManager.php
+index 93b69c00..c7ff9f84 100644
+--- a/modules/webform_group/src/WebformGroupManager.php
++++ b/modules/webform_group/src/WebformGroupManager.php
+@@ -5,6 +5,7 @@
+ use Drupal\Core\Session\AccountInterface;
+ use Drupal\Core\Config\ConfigFactoryInterface;
+ use Drupal\Core\Entity\EntityTypeManagerInterface;
++use Drupal\group\Entity\Group;
+ use Drupal\group\Entity\GroupContentInterface;
+ use Drupal\webform\EntityStorage\WebformEntityStorageTrait;
+ use Drupal\webform\WebformAccessRulesManagerInterface;
+@@ -137,11 +138,47 @@ public function getCurrentUserGroupRoles() {
+       return $this->currentGroupRoles;
+     }
+ 
+-    $group_content = $this->getCurrentGroupContent();
+-    $this->currentGroupRoles = ($group_content) ? $this->getUserGroupRoles($group_content, $this->currentUser) : [];
++    $group = $this->getCurrentGroup();
++    $this->currentGroupRoles = ($group) ? $this->getUserGroupRoles($group, $this->currentUser) : [];
+     return $this->currentGroupRoles;
+   }
+ 
++  /**
++   * {@inheritdoc}
++   */
++  public function getCurrentGroup()
++  {
++    // Load from group content context if available
++    $group_content = $this->getCurrentGroupContent();
++    if ($group_content) {
++      return $group_content->getGroup();
++    }
++
++    // Load from an entity ref element called 'group' if available
++    $query = \Drupal::request()->get('webform_access_group');
++    if ($query) {
++      $group_id = $query;
++      if ($group = Group::load($group_id)) {
++        // $link = $group->toLink($group->label(), 'canonical', ['target' => '_blank']);
++        // $message = new FormattableMarkup('This submission is being made for <b>@link</b>', [
++        //   '@link' => $link->toString()
++        // ]);
++        // \Drupal::messenger()->addMessage($message);
++
++        return $group;
++      }
++    }
++
++    // Load from an entity ref element called 'group' if available
++    $webform_submission = $this->requestHandler->getCurrentWebformSubmission();
++    if ($webform_submission) {
++      $group_id = $webform_submission->getElementData('group');
++      if ($group = Group::load($group_id)) {
++        return $group;
++      }
++    }
++  }
++
+   /**
+    * {@inheritdoc}
+    */
+@@ -193,7 +230,12 @@ public function getWebformSubmissionUserGroupRoles(WebformSubmissionInterface $w
+   public function getWebformSubmissionGroupContent(WebformSubmissionInterface $webform_submission) {
+     $source_entity = $webform_submission->getSourceEntity();
+     if (!$source_entity) {
+-      return NULL;
++      $group_id = $webform_submission->getData()['group'];
++      if($group_id && $group = Group::load($group_id)) {
++        $source_entity = $group;
++      }else {
++        return NULL;
++      }
+     }
+ 
+     /** @var \Drupal\group\Entity\Storage\GroupContentStorageInterface $group_content_storage */
+@@ -257,16 +299,15 @@ public function getAccessRules(WebformInterface $webform) {
+   /**
+    * Get current user group roles for group content.
+    *
+-   * @param \Drupal\group\Entity\GroupContentInterface $group_content
+-   *   Group content.
++   * @param \Drupal\group\Entity\GroupContentInterface $group
++   *   Group.
+    * @param \Drupal\Core\Session\AccountInterface $account
+    *   A user account.
+    *
+    * @return array
+    *   An array of group roles for the group content.
+    */
+-  protected function getUserGroupRoles(GroupContentInterface $group_content, AccountInterface $account) {
+-    $group = $group_content->getGroup();
++  protected function getUserGroupRoles(GroupInterface $group, AccountInterface $account) {
+     $group_type_id = $group->getGroupType()->id();
+ 
+     // Must get implied groups, which includes outsider, by calling
+diff --git a/modules/webform_group/src/WebformGroupManagerInterface.php b/modules/webform_group/src/WebformGroupManagerInterface.php
+index dd4f55b5..fe4bb91a 100644
+--- a/modules/webform_group/src/WebformGroupManagerInterface.php
++++ b/modules/webform_group/src/WebformGroupManagerInterface.php
+@@ -36,6 +36,15 @@ public function isGroupRoleTokenEnabled($group_role_id);
+    */
+   public function getCurrentUserGroupRoles();
+ 
++  /**
++   * Get the group for the current request.
++   *
++   * @return \Drupal\group\Entity\GroupInterface|bool
++   *   The group for the current request.
++   *   FALSE if no group is found for the current request.
++   */
++  public function getCurrentGroup();
++
+   /**
+    * Get the group content for the current request.
+    *
