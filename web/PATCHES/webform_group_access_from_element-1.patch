@@ -1,0 +1,89 @@
+diff --git a/modules/webform_group/src/WebformGroupManagerInterface.php b/modules/webform_group/src/WebformGroupManagerInterface.php
+--- a//modules/webform_group/src/WebformGroupManagerInterface.php	2021-05-11 09:37:16.403273899 +0100
++++ b/modules/webform_group/src/WebformGroupManagerInterface.php	2021-05-11 09:40:10.641681425 +0100
+@@ -37,6 +37,15 @@
+   public function getCurrentUserGroupRoles();
+ 
+   /**
++   * Get the group for the current request.
++   *
++   * @return \Drupal\group\Entity\GroupInterface|bool
++   *   The group for the current request.
++   *   FALSE if no group is found for the current request.
++   */
++  public function getCurrentGroup();
++
++  /**
+    * Get the group content for the current request.
+    *
+    * @return \Drupal\group\Entity\GroupContentInterface|bool
+diff --git a/modules/webform_group/src/WebformGroupManager.php b/modules/webform_group/src/WebformGroupManager.php
+--- a//modules/webform_group/src/WebformGroupManager.php	2021-05-11 09:37:16.403273899 +0100
++++ b/modules/webform_group/src/WebformGroupManager.php	2021-05-11 10:39:11.208962345 +0100
+@@ -5,7 +5,9 @@
+ use Drupal\Core\Session\AccountInterface;
+ use Drupal\Core\Config\ConfigFactoryInterface;
+ use Drupal\Core\Entity\EntityTypeManagerInterface;
++use Drupal\group\Entity\Group;
+ use Drupal\group\Entity\GroupContentInterface;
++use Drupal\group\Entity\GroupInterface;
+ use Drupal\webform\EntityStorage\WebformEntityStorageTrait;
+ use Drupal\webform\WebformAccessRulesManagerInterface;
+ use Drupal\webform\WebformInterface;
+@@ -137,14 +139,34 @@
+       return $this->currentGroupRoles;
+     }
+ 
+-    $group_content = $this->getCurrentGroupContent();
+-    $this->currentGroupRoles = ($group_content) ? $this->getUserGroupRoles($group_content, $this->currentUser) : [];
++    $group = $this->getCurrentGroup();    
++    $this->currentGroupRoles = ($group) ? $this->getUserGroupRoles($group, $this->currentUser) : [];
+     return $this->currentGroupRoles;
+   }
+ 
+   /**
+    * {@inheritdoc}
+    */
++  public function getCurrentGroup() {
++    // Load from group content context if available
++    $group_content = $this->getCurrentGroupContent();
++    if($group_content) {
++      return $group_content->getGroup();
++    }
++
++    // Load from an entity ref element called 'group' if available
++    $webform_submission = $this->requestHandler->getCurrentWebformSubmission();
++    if($webform_submission) {
++      $group_id = $webform_submission->getElementData('group');
++      if($group = Group::load($group_id)) {
++        return $group;
++      }
++    }
++  }
++
++  /**
++   * {@inheritdoc}
++   */
+   public function getCurrentGroupContent() {
+     if (isset($this->currentGroupContent)) {
+       return $this->currentGroupContent;
+@@ -257,16 +279,15 @@
+   /**
+    * Get current user group roles for group content.
+    *
+-   * @param \Drupal\group\Entity\GroupContentInterface $group_content
+-   *   Group content.
++   * @param \Drupal\group\Entity\GroupInterface $group
++   *   Group.
+    * @param \Drupal\Core\Session\AccountInterface $account
+    *   A user account.
+    *
+    * @return array
+    *   An array of group roles for the group content.
+    */
+-  protected function getUserGroupRoles(GroupContentInterface $group_content, AccountInterface $account) {
+-    $group = $group_content->getGroup();
++  protected function getUserGroupRoles(GroupInterface $group, AccountInterface $account) {
+     $group_type_id = $group->getGroupType()->id();
+ 
+     // Must get implied groups, which includes outsider, by calling
